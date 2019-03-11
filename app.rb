@@ -14,12 +14,12 @@ KillBillClient.url = settings.kb_url
 options = {
     :username => 'admin',
     :password => 'password',
-    :api_key => 'bob',
-    :api_secret => 'lazar'
+    :api_key => 'test15',
+    :api_secret => 'test15'
 }
 
 # Audit log data
-user = 'demo'
+user = 'admin'
 reason = 'New subscription'
 comment = 'Trigger by Sinatra'
 
@@ -55,12 +55,6 @@ def auth(account, encrypted_json, user, reason, comment, options)
   transaction.amount = 1
   transaction.currency = 'USD'
   transaction.auth(account.account_id, nil, user, reason, comment, options.dup.merge({:pluginProperty => [contract_prop, contAuth_prop, ee_prop]}))
-end
-
-def void(payment, user, reason, comment, options)
-  transaction = KillBillClient::Model::Transaction.new
-  transaction.payment_id = payment.payment_id
-  transaction.void(user, reason, comment, options)
 end
 
 # HPP directory lookup
@@ -136,7 +130,6 @@ end
 def sync_recurring_contract(account, encrypted_json, user, reason, comment, options)
   # $1 verification (auth/void): Adyen requires a payment to tokenize the card
   payment = auth(account, encrypted_json, user, reason, comment, options)
-  void(payment, user, reason, comment, options)
 
   # Sync the payment methods to get the freshly created Adyen token
   KillBillClient::Model::PaymentMethod.refresh(account.account_id, user, reason, comment, options)
@@ -145,17 +138,11 @@ end
 def create_subscription(account, should_wait_for_payment, user, reason, comment, options)
   subscription = KillBillClient::Model::Subscription.new
   subscription.account_id = account.account_id
-  subscription.product_name = 'Sports'
+  subscription.product_name = 'Storage'
   subscription.product_category = 'BASE'
-  subscription.billing_period = 'MONTHLY'
+  subscription.billing_period = 'DAILY'
   subscription.price_list = 'DEFAULT'
   subscription.price_overrides = []
-
-  # For the demo to be interesting, override the trial price to be non-zero so we trigger a charge in Adyen
-  override_trial = KillBillClient::Model::PhasePriceOverrideAttributes.new
-  override_trial.phase_type = 'TRIAL'
-  override_trial.fixed_price = 10.0
-  subscription.price_overrides << override_trial
 
   subscription.create(user, reason, comment, nil, should_wait_for_payment, options)
 end
@@ -172,7 +159,6 @@ get '/' do
   create_kb_payment_method(@account, user, reason, comment, options)
 
   # Look-up available payment methods
-  @directory = directory_lookup(@account, user, reason, comment, options)
 
   erb :index
 end
@@ -240,7 +226,7 @@ __END__
   </html>
 
 @@index
-  <span class="image"><img src="https://drive.google.com/uc?&amp;id=0Bw8rymjWckBHT3dKd0U3a1RfcUE&amp;w=960&amp;h=480" alt="uc?&amp;id=0Bw8rymjWckBHT3dKd0U3a1RfcUE&amp;w=960&amp;h=480"></span>
+  <span class="image"></span>
   <form action="/charge" method="post" id="adyen-encrypted-form">
     <article>
       <label class="amount">
@@ -263,16 +249,6 @@ __END__
   </form>
   <br/>
   Or pay via these payment methods directly:
-  <ul>
-    <% @directory.each do |pm| %>
-      <li>
-        <form action="/charge" method="post">
-          <input type="hidden" value="<%= @account.account_id %>" name="kb-account-id" />
-          <input type="submit" name="brand-<%= pm['brandCode'] %>" value="<%= pm['name'] %>" />
-        </form>
-      </li>
-    <% end %>
-  </ul>
   <script src="https://test.adyen.com/hpp/cse/js/<%= settings.encryption_token %>.shtml"></script>
   <script>
     var form    = document.getElementById('adyen-encrypted-form');
